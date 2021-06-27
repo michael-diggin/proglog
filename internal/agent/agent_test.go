@@ -13,6 +13,7 @@ import (
 	"github.com/michael-diggin/proglog/internal/config"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 
 	api "github.com/michael-diggin/proglog/api/v1"
@@ -58,6 +59,7 @@ func TestAgent(t *testing.T) {
 			ACLPolicyFile:   config.ACLPolicyFile,
 			ServerTLSConfig: serverTLSConfig,
 			PeerTLSConfig:   peerTLSConfig,
+			Bootstrap:       i == 0,
 		})
 		require.NoError(t, err)
 		agents = append(agents, agent)
@@ -86,6 +88,11 @@ func TestAgent(t *testing.T) {
 	consumeResponse, err = followClient.Consume(ctx, &api.ConsumeRequest{Offset: produceResponse.Offset})
 	require.NoError(t, err)
 	require.Equal(t, message.Value, consumeResponse.Record.Value)
+
+	consumeResponse, err = leaderClient.Consume(ctx, &api.ConsumeRequest{Offset: produceResponse.Offset + 1})
+	require.Error(t, err)
+	require.Nil(t, consumeResponse)
+	require.Equal(t, codes.NotFound, grpc.Code(err))
 }
 
 func client(t *testing.T, agent *Agent, tlsConfig *tls.Config) api.LogClient {
