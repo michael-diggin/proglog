@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/michael-diggin/proglog/internal/config"
+	"github.com/michael-diggin/proglog/internal/loadbalance"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -79,11 +80,11 @@ func TestAgent(t *testing.T) {
 	produceResponse, err := leaderClient.Produce(ctx, &api.ProduceRequest{Record: message})
 	require.NoError(t, err)
 
+	time.Sleep(1 * time.Second)
 	consumeResponse, err := leaderClient.Consume(ctx, &api.ConsumeRequest{Offset: produceResponse.Offset})
 	require.NoError(t, err)
 	require.Equal(t, message.Value, consumeResponse.Record.Value)
 
-	time.Sleep(1 * time.Second)
 	followClient := client(t, agents[1], peerTLSConfig)
 	consumeResponse, err = followClient.Consume(ctx, &api.ConsumeRequest{Offset: produceResponse.Offset})
 	require.NoError(t, err)
@@ -100,7 +101,7 @@ func client(t *testing.T, agent *Agent, tlsConfig *tls.Config) api.LogClient {
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(tlsCreds)}
 	rpcAddr, err := agent.Config.RPCAddr()
 	require.NoError(t, err)
-	conn, err := grpc.Dial(fmt.Sprintf("%s", rpcAddr), opts...)
+	conn, err := grpc.Dial(fmt.Sprintf("%s:///%s", loadbalance.Name, rpcAddr), opts...)
 	require.NoError(t, err)
 	return api.NewLogClient(conn)
 }
