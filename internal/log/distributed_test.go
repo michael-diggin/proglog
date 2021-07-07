@@ -31,6 +31,7 @@ func TestMultipleNodes(t *testing.T) {
 		config := Config{}
 		config.Raft.StreamLayer = NewStreamLayer(ln, nil, nil)
 		config.Raft.LocalID = raft.ServerID(fmt.Sprintf("%d", i))
+		config.Raft.BindAddr = ln.Addr().String()
 		config.Raft.HeartbeatTimeout = 50 * time.Millisecond
 		config.Raft.ElectionTimeout = 50 * time.Millisecond
 		config.Raft.LeaderLeaseTimeout = 50 * time.Millisecond

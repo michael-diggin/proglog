@@ -69,24 +69,28 @@ func New(config Config) (*Agent, error) {
 			return nil, err
 		}
 	}
-	go a.serve()
+	go func() { a.serve() }()
 	return a, nil
 }
 
 func (a *Agent) setupLogger() error {
 	logger, err := zap.NewDevelopment()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to set up logger: %w", err)
 	}
 	zap.ReplaceGlobals(logger)
 	return nil
 }
 
 func (a *Agent) setupMux() error {
-	rpcAddr := fmt.Sprintf(":%d", a.Config.RPCPort)
+	addr, err := net.ResolveTCPAddr("tcp", a.Config.BindAddr)
+	if err != nil {
+		return fmt.Errorf("failed to resolve tcp: %w", err)
+	}
+	rpcAddr := fmt.Sprintf("%s:%d", addr.IP.String(), a.Config.RPCPort)
 	ln, err := net.Listen("tcp", rpcAddr)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to set up listener: %w", err)
 	}
 	a.mux = cmux.New(ln)
 	return nil
@@ -105,14 +109,22 @@ func (a *Agent) setupLog() (err error) {
 	logConfig.Raft.StreamLayer = log.NewStreamLayer(
 		raftLn, a.Config.ServerTLSConfig, a.Config.PeerTLSConfig,
 	)
+	rpcAddr, err := a.Config.RPCAddr()
+	if err != nil {
+		return err
+	}
+	logConfig.Raft.BindAddr = rpcAddr
 	logConfig.Raft.LocalID = raft.ServerID(a.Config.NodeName)
 	logConfig.Raft.Bootstrap = a.Config.Bootstrap
 	a.log, err = log.NewDistributedLog(a.Config.DataDir, logConfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to set up Log: %w", err)
 	}
 	if a.Config.Bootstrap {
-		return a.log.WaitForLeader(3 * time.Second)
+		err = a.log.WaitForLeader(3 * time.Second)
+		if err != nil {
+			return fmt.Errorf("failed to wait for leader: %w", err)
+		}
 	}
 	return nil
 }
@@ -154,7 +166,10 @@ func (a *Agent) setupMembership() error {
 		Tags:           map[string]string{"rpc_addr": rpcAddr},
 		StartJoinAddrs: a.Config.StartJoinAddrs,
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to set up discovery: %w", err)
+	}
+	return nil
 }
 
 func (a *Agent) Shutdown() error {

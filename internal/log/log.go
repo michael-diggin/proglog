@@ -151,7 +151,7 @@ func (l *Log) HighestOffset() (uint64, error) {
 	if off == 0 {
 		return 0, nil
 	}
-	return off - 1, nil
+	return uint64(off - 1), nil
 }
 
 // Truncate removes all segments from the log whose highest offset is lower

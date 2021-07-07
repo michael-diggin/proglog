@@ -80,11 +80,11 @@ func (s *segment) Append(record *api.Record) (offset uint64, err error) {
 func (s *segment) Read(off uint64) (*api.Record, error) {
 	_, pos, err := s.index.Read(int64(off - s.baseOffset))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read from index: %w", err)
 	}
 	p, err := s.store.Read(pos)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read from store:%w", err)
 	}
 	record := &api.Record{}
 	err = proto.Unmarshal(p, record)
