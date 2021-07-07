@@ -46,3 +46,10 @@ ${CONFIG_PATH}/policy.csv:
 .PHONY: test
 test: ${CONFIG_PATH}/model.conf ${CONFIG_PATH}/policy.csv
 	go test ./...
+
+TAG ?=0.0.1
+
+build-docker:
+	CGO_ENABLED=0 go build -o proglog ./cmd/proglog
+	docker build -t github.com/michael-diggin/proglog:$(TAG) .
+	rm ./proglog

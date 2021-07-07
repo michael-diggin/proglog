@@ -65,14 +65,14 @@ func (l *DistributedLog) setupRaft(dataDir string) error {
 	logConfig.Segment.InitialOffset = 1
 	logStore, err := newLogStore(logDir, logConfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to set up raft log store: %w", err)
 	}
 
 	stableStore, err := raftboltdb.NewBoltStore(
 		filepath.Join(dataDir, "raft", "stable"),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to set up raft stable store: %w", err)
 	}
 	retain := 1
 	snapshotStore, err := raft.NewFileSnapshotStore(
@@ -81,7 +81,7 @@ func (l *DistributedLog) setupRaft(dataDir string) error {
 		os.Stderr,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to set up raft snapshot store: %w", err)
 	}
 
 	maxPool := 5
@@ -117,20 +117,23 @@ func (l *DistributedLog) setupRaft(dataDir string) error {
 		transport,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to start new raft: %w", err)
 	}
 	hasState, err := raft.HasExistingState(logStore, stableStore, snapshotStore)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to check exisiting state: %w", err)
 	}
 	if l.config.Raft.Bootstrap && !hasState {
 		config := raft.Configuration{
 			Servers: []raft.Server{{
 				ID:      config.LocalID,
-				Address: transport.LocalAddr(),
+				Address: raft.ServerAddress(l.config.Raft.BindAddr),
 			}},
 		}
 		err = l.raft.BootstrapCluster(config).Error()
+		if err != nil {
+			return fmt.Errorf("failed to bootstrap cluster: %w", err)
+		}
 	}
 	return err
 }
@@ -348,7 +351,7 @@ func (l *logStore) LastIndex() (uint64, error) {
 func (l *logStore) GetLog(index uint64, out *raft.Log) error {
 	in, err := l.Read(index)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed when calling GetLog with offset %d: %w", index, err)
 	}
 	out.Data = in.Value
 	out.Index = in.Offset
